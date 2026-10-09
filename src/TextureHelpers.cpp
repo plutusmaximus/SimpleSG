@@ -1,6 +1,5 @@
 #include "TextureHelpers.h"
 
-
 #include "Defer.h"
 #include "FileFetcher.h"
 #include "GpuHelper.h"
@@ -12,21 +11,23 @@
 #include <stb_image.h>
 #include <webgpu/webgpu_cpp.h>
 
-TextureFetchTask::TextureFetchTask(const GpuHelper& gpuHelper,
-    FileFetcher& fileFetcher,
-    ThreadPool& threadPool,
+/// TextureDecodeTask
+
+TextureDecodeTask::TextureDecodeTask(const GpuHelper& gpuHelper,
+    std::vector<std::byte>&& rawData,
     const FilePath& path,
+    ThreadPool& threadPool,
     wgpu::CommandEncoder commandEncoder)
     : m_GpuHelper(&gpuHelper),
-      m_FileFetcher(&fileFetcher),
       m_ThreadPool(&threadPool),
       m_Path(path),
+      m_TexBytes(std::move(rawData)),
       m_CommandEncoder(std::move(commandEncoder))
 {
 }
 
 Result<wgpu::Texture>
-TextureFetchTask::Take()
+TextureDecodeTask::Take()
 {
     MLG_CHECKV(!IsRunning(), "Task is not complete");
     MLG_CHECK(Stage::Succeeded == m_Stage, "Task failed");
@@ -41,7 +42,7 @@ TextureFetchTask::Take()
 // private:
 
 Result<>
-TextureFetchTask::OnStart()
+TextureDecodeTask::OnStart()
 {
     MLG_CHECKV(Stage::None == m_Stage, "Task already started");
 
@@ -50,18 +51,15 @@ TextureFetchTask::OnStart()
     m_Texture = m_GpuHelper->GetDefaultTexture();
     MLG_CHECK(m_Texture, "Failed to get default texture");
 
-    auto fetchRequestId = m_FileFetcher->Fetch(m_Path);
-    MLG_CHECK(fetchRequestId);
+    MLG_CHECK(BeginDecode());
 
-    m_FetchRequestId = *fetchRequestId;
-
-    m_Stage = Stage::Fetching;
+    m_Stage = Stage::Decoding;
 
     return Result<>::Ok;
 }
 
 void
-TextureFetchTask::OnUpdate()
+TextureDecodeTask::OnUpdate()
 {
     MLG_LOG_SCOPE(m_Path.GetStem());
 
@@ -71,27 +69,6 @@ TextureFetchTask::OnUpdate()
             MLG_ABORT("Task is not running");
             break;
 
-        case Stage::Fetching:
-            if(!m_FileFetcher->IsPending(m_FetchRequestId))
-            {
-                auto fetchedData = m_FileFetcher->Take(m_FetchRequestId);
-
-                if(!fetchedData)
-                {
-                    MLG_ERROR("Failed to take fetched data");
-                    m_Stage = Stage::Failed;
-                }
-                else if(BeginDecode(std::move(*fetchedData)))
-                {
-                    m_Stage = Stage::Decoding;
-                }
-                else
-                {
-                    MLG_ERROR("Failed to stage texture");
-                    m_Stage = Stage::Failed;
-                }
-            }
-            break;
         case Stage::Decoding:
             if(m_CompletionFlag.load(std::memory_order_acquire))
             {
@@ -123,19 +100,17 @@ TextureFetchTask::OnUpdate()
 }
 
 Result<>
-TextureFetchTask::BeginDecode(std::vector<std::byte>&& fetchedData)
+TextureDecodeTask::BeginDecode()
 {
     MLG_DEBUG("Staging texture...");
 
-    m_FetchedData = std::move(fetchedData);
-
     int width = 0, height = 0, numChannels = 0;
 
-    const void* p = m_FetchedData.data();
-    const stbi_uc* fetchedBytes = static_cast<const stbi_uc*>(p);
+    const void* p = m_TexBytes.data();
+    const stbi_uc* texBytes = static_cast<const stbi_uc*>(p);
 
-    if(!stbi_info_from_memory(fetchedBytes,
-           static_cast<int>(m_FetchedData.size()),
+    if(!stbi_info_from_memory(texBytes,
+           static_cast<int>(m_TexBytes.size()),
            &width,
            &height,
            &numChannels))
@@ -180,31 +155,39 @@ TextureFetchTask::BeginDecode(std::vector<std::byte>&& fetchedData)
 }
 
 Result<>
-TextureFetchTask::Decode()
+TextureDecodeTask::Decode()
 {
     MLG_LOG_SCOPE(m_Path.GetStem());
 
     MLG_DEBUG("Decoding...");
 
+    MLG_DEFER
+    {
+        // Free the buffer to reclaim memory.
+        std::vector<std::byte>().swap(m_TexBytes);
+    };
+
     int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
 
-    const void* p = m_FetchedData.data();
-    const stbi_uc* fetchedBytes = static_cast<const stbi_uc*>(p);
+    const void* p = m_TexBytes.data();
+    const stbi_uc* texBytes = static_cast<const stbi_uc*>(p);
 
-    stbi_uc* data = stbi_load_from_memory(fetchedBytes,
-        static_cast<int>(m_FetchedData.size()),
+    stbi_uc* data = stbi_load_from_memory(texBytes,
+        static_cast<int>(m_TexBytes.size()),
         &imgWidth,
         &imgHeight,
         &imgNumChannels,
         GpuHelper::kNumTextureChannels);
 
-    // Free the fetched data to save memory.
-    std::vector<std::byte>().swap(m_FetchedData);
-
     MLG_CHECKV(data, "Failed to decode image - {}", stbi_failure_reason());
+
+    // Eager reclaiming of memory.  The deferred recalaim from above will
+    // still run but it will be a no-op.
+    std::vector<std::byte>().swap(m_TexBytes);
 
     MLG_DEFER
     {
+        // Free the stb image buffer.
         stbi_image_free(data);
     };
 
@@ -237,15 +220,15 @@ TextureFetchTask::Decode()
 }
 
 void
-TextureFetchTask::Decode(void* userData)
+TextureDecodeTask::Decode(void* userData)
 {
-    TextureFetchTask* task = static_cast<TextureFetchTask*>(userData);
+    TextureDecodeTask* task = static_cast<TextureDecodeTask*>(userData);
     task->m_DecodeResult = task->Decode();
     task->m_CompletionFlag.store(true, std::memory_order_release);
 }
 
 Result<>
-TextureFetchTask::CommitStagingBuffer()
+TextureDecodeTask::CommitStagingBuffer()
 {
     MLG_DEBUG("Committing staging buffer...");
 
@@ -253,4 +236,125 @@ TextureFetchTask::CommitStagingBuffer()
         "Failed to commit staging buffer");
 
     return Result<>::Ok;
+}
+
+/// TextureFetchTask
+
+TextureFetchTask::TextureFetchTask(const GpuHelper& gpuHelper,
+    FileFetcher& fileFetcher,
+    ThreadPool& threadPool,
+    const FilePath& path,
+    wgpu::CommandEncoder commandEncoder)
+    : m_GpuHelper(&gpuHelper),
+      m_FileFetcher(&fileFetcher),
+      m_ThreadPool(&threadPool),
+      m_Path(path),
+      m_CommandEncoder(std::move(commandEncoder))
+{
+}
+
+Result<wgpu::Texture>
+TextureFetchTask::Take()
+{
+    MLG_CHECKV(!IsRunning(), "Task is not complete");
+    MLG_CHECK(Stage::Succeeded == m_Stage, "Task failed");
+    MLG_CHECKV(m_Texture, "Texture is not valid");
+
+    wgpu::Texture texture = m_Texture;
+    m_Texture = nullptr; // Invalidate the texture so it can only be taken once
+
+    return texture;
+}
+
+// private:
+
+Result<>
+TextureFetchTask::OnStart()
+{
+    MLG_CHECKV(Stage::None == m_Stage, "Task already started");
+
+    m_Stage = Stage::Failed; // Set to failed in case of early exit
+
+    // If loading fails then we use the default texture.
+    m_Texture = m_GpuHelper->GetDefaultTexture();
+    MLG_CHECK(m_Texture, "Failed to get default texture");
+
+    auto fetchRequestId = m_FileFetcher->Fetch(m_Path);
+    MLG_CHECK(fetchRequestId);
+
+    m_FetchRequestId = *fetchRequestId;
+
+    m_Stage = Stage::Fetching;
+
+    return Result<>::Ok;
+}
+
+void
+TextureFetchTask::OnUpdate()
+{
+    MLG_LOG_SCOPE(m_Path.GetStem());
+
+    switch(m_Stage)
+    {
+        case Stage::None:
+            MLG_ABORT("Task is not running");
+            break;
+
+        case Stage::Fetching:
+            if(!m_FileFetcher->IsPending(m_FetchRequestId))
+            {
+                auto fetchedData = m_FileFetcher->Take(m_FetchRequestId);
+
+                if(!fetchedData)
+                {
+                    MLG_ERROR("Failed to take fetched data");
+                    m_Stage = Stage::Failed;
+                }
+                else if(m_TextureDecodeTask.emplace(*m_GpuHelper,
+                            std::move(*fetchedData),
+                            m_Path,
+                            *m_ThreadPool,
+                            m_CommandEncoder);
+                    !m_TextureDecodeTask->Start())
+                {
+                    MLG_ERROR("Failed to start texture decode task");
+                    m_Stage = Stage::Failed;
+                }
+                else
+                {
+                    m_Stage = Stage::Decoding;
+                }
+            }
+            break;
+        case Stage::Decoding:
+            if(m_TextureDecodeTask->IsRunning())
+            {
+                m_TextureDecodeTask->Update();
+            }
+            else
+            {
+                if(auto textureResult = m_TextureDecodeTask->Take(); !textureResult)
+                {
+                    MLG_ERROR("Failed to take decoded texture");
+                    m_Stage = Stage::Failed;
+                }
+                else
+                {
+                    MLG_DEBUG("Loaded");
+                    m_Texture = *textureResult;
+                    m_Stage = Stage::Succeeded;
+                }
+
+                // Reclaim resources.
+                m_TextureDecodeTask.reset();
+            }
+            break;
+
+        case Stage::Failed:
+            MLG_ERROR("Task failed");
+            [[fallthrough]];
+        case Stage::Succeeded:
+            SetComplete();
+            break;
+    }
 }

@@ -1,5 +1,6 @@
 #include "ResourceBundle.h"
 
+#include "Defer.h"
 #include "Result.h"
 #include "SceneTypes.h"
 
@@ -1273,22 +1274,24 @@ ResourceBundle::LoadTask::OnUpdate()
 {
     if(!m_FileFetcher->IsPending(m_FetchRequestId))
     {
+        MLG_DEFER
+        {
+            SetComplete();
+        };
+
         auto fetchedData = m_FileFetcher->Take(m_FetchRequestId);
         if(!fetchedData)
         {
             MLG_ERROR("Failed to take fetched data");
-            SetComplete();
             return;
         }
 
         if(!Validate(*fetchedData))
         {
             MLG_ERROR("Resource bundle validation failed");
-            SetComplete();
             return;
         }
 
         m_Result = ResourceBundle(std::move(*fetchedData));
-        SetComplete();
     }
 }

@@ -43,7 +43,6 @@ TextureFetcher::OnStart()
     {
         MLG_DEBUG("No texture paths provided");
         m_Stage = Stage::Succeeded;
-        SetComplete();
         return Result<>::Ok;
     }
 
