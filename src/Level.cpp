@@ -3,6 +3,12 @@
 #include "GltfLoader.h"
 #include "ResourceBundle.h"
 #include "Scene.h"
+#include "System.h"
+#include <llex.h>
+
+/// Level
+
+Level::~Level() = default;
 
 Level::Level(std::unique_ptr<Scene>&& scene, std::unique_ptr<View>&& view)
     : m_Scene(std::move(scene)),
@@ -10,6 +16,8 @@ Level::Level(std::unique_ptr<Scene>&& scene, std::unique_ptr<View>&& view)
 {
     MLG_ABORTIF(!m_Scene || !m_View, "Scene or View is null");
 }
+
+/// Level::CreateTask
 
 Level::CreateTask::CreateTask(System& system, SceneDef&& sceneDef)
     : m_System(&system),
@@ -32,10 +40,11 @@ Level::CreateTask::CreateTask(System& system, GltfParams gltfParams)
 {
 }
 
+Level::CreateTask::~CreateTask() = default;
+
 Result<std::unique_ptr<Level>>
 Level::CreateTask::Take()
 {
-    MLG_CHECK(m_Stage != Stage::None, "Task has not started");
     MLG_CHECK(!IsRunning(), "Task is still running");
     MLG_CHECK(Stage::Succeeded == m_Stage, "Task has not succeeded");
     MLG_CHECKV(m_Level, "Level has already been taken");
@@ -54,6 +63,18 @@ Level::CreateTask::OnStart()
             || Stage::StartFromGltfParams == m_Stage,
         "Invalid initial stage");
 
+    if(Stage::StartFromSceneDef == m_Stage)
+    {
+        MLG_INFO("Creating level from SceneDef...");
+    }
+    else
+    {
+        auto pathResult = GetPath();
+        MLG_CHECK(pathResult, "Failed to get path for level");
+
+        MLG_INFO("Creating level from: {}...", *pathResult);
+    }
+
     return Result<>::Ok;
 }
 
@@ -67,18 +88,26 @@ Level::CreateTask::OnUpdate()
             break;
 
         case Stage::StartFromSceneDef:
-            if(!CreateFromSceneDef(std::get<SceneDef>(m_Params)))
+            if(auto bundleResult = CreateResourceBundle(std::get<SceneDef>(m_Params));
+                !bundleResult)
             {
-                MLG_ERROR("Failed to create from SceneDef");
+                MLG_ERROR("Failed to create resource bundle from SceneDef");
+                m_Stage = Stage::Failed;
+            }
+            else if(auto sceneResult = CreateScene(*bundleResult); !sceneResult)
+            {
+                MLG_ERROR("Failed to create scene from resource bundle");
                 m_Stage = Stage::Failed;
             }
             else
             {
-                const DirectoryPath parentPath = DirectoryPath::Current();
-                m_OptCreateViewTask.emplace(*m_System, parentPath, *m_RsrcBundle, *m_Scene);
-                if(!m_OptCreateViewTask->Start())
+                // Must keep the resource bundle alive while the view is being created
+                m_ResourceBundle = std::move(*bundleResult);
+                m_Scene = std::move(*sceneResult);
+
+                if(!CreateView(DirectoryPath::Current(), m_ResourceBundle, *m_Scene))
                 {
-                    MLG_ERROR("Failed to start view creation task");
+                    MLG_ERROR("Failed to create view");
                     m_Stage = Stage::Failed;
                 }
                 else
@@ -89,35 +118,58 @@ Level::CreateTask::OnUpdate()
             break;
 
         case Stage::StartFromBundleParams:
-            MLG_ERROR("Loading from bundle is not implemented");
-            m_Stage = Stage::Failed;
-            break;
-        case Stage::StartFromGltfParams:
-        {
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-            const std::string_view path = std::get<GltfParams>(m_Params).Path;
-
-            if(const auto loadResult = GltfLoader::Load(path); !loadResult)
+            if(auto pathResult = GetPath(); !pathResult)
             {
-                MLG_ERROR("Failed to load glTF file: {}", path);
+                MLG_ERROR("Failed to get path for bundle file");
                 m_Stage = Stage::Failed;
             }
-            else if(!CreateFromSceneDef(*loadResult))
+            else if(m_RsrcBundleLoadTask.emplace(*pathResult, m_System->GetFileFetcher());
+                !m_RsrcBundleLoadTask->Start())
             {
-                MLG_ERROR("Failed to create from SceneDef");
-                m_Stage = Stage::Failed;
-            }
-            else if(const auto parentPath = DirectoryPath::ParentPath(path); !parentPath)
-            {
-                MLG_ERROR("Failed to get parent path for {}", path);
+                MLG_ERROR("Failed to load resource bundle: {}", *pathResult);
                 m_Stage = Stage::Failed;
             }
             else
             {
-                m_OptCreateViewTask.emplace(*m_System, *parentPath, *m_RsrcBundle, *m_Scene);
-                if(!m_OptCreateViewTask->Start())
+                m_Stage = Stage::LoadingBundle;
+            }
+            break;
+
+        case Stage::StartFromGltfParams:
+            if(auto pathResult = GetPath(); !pathResult)
+            {
+                MLG_ERROR("Failed to get path for glTF file");
+                m_Stage = Stage::Failed;
+            }
+            else if(const auto loadResult = GltfLoader::Load(*pathResult); !loadResult)
+            {
+                MLG_ERROR("Failed to load glTF file: {}", *pathResult);
+                m_Stage = Stage::Failed;
+            }
+            else if(auto bundleResult = CreateResourceBundle(*loadResult); !bundleResult)
+            {
+                MLG_ERROR("Failed to create resource bundle: {}", *pathResult);
+                m_Stage = Stage::Failed;
+            }
+            else if(auto sceneResult = CreateScene(*bundleResult); !sceneResult)
+            {
+                MLG_ERROR("Failed to create scene from resource bundle: {}", *pathResult);
+                m_Stage = Stage::Failed;
+            }
+            else if(const auto parentPathResult = DirectoryPath::ParentPath(*pathResult);
+                !parentPathResult)
+            {
+                MLG_ERROR("Failed to get parent path for {}", *pathResult);
+                m_Stage = Stage::Failed;
+            }
+            else
+            {
+                m_ResourceBundle = std::move(*bundleResult);
+                m_Scene = std::move(*sceneResult);
+
+                if(!CreateView(*parentPathResult, m_ResourceBundle, *m_Scene))
                 {
-                    MLG_ERROR("Failed to start view creation task");
+                    MLG_ERROR("Failed to create view");
                     m_Stage = Stage::Failed;
                 }
                 else
@@ -126,31 +178,73 @@ Level::CreateTask::OnUpdate()
                 }
             }
             break;
-        }
-        case Stage::CreatingView:
-            if(!MLG_VERIFY(m_OptCreateViewTask, "View creation task is not valid"))
+        case Stage::LoadingBundle:
+            if(m_RsrcBundleLoadTask->IsRunning())
             {
-                m_Stage = Stage::Failed;
-            }
-            else if(m_OptCreateViewTask->IsRunning())
-            {
-                m_OptCreateViewTask->Update();
+                m_RsrcBundleLoadTask->Update();
             }
             else
             {
-                auto viewResult = m_OptCreateViewTask->Take();
-
-                if(viewResult)
+                if(auto pathResult = GetPath(); !pathResult)
                 {
-                    m_Level = std::unique_ptr<Level>(
-                        new Level(std::move(m_Scene), std::move(*viewResult)));
-                    m_Stage = Stage::Succeeded;
+                    MLG_ERROR("Failed to get path for resource bundle");
+                    m_Stage = Stage::Failed;
+                }
+                else if(auto bundleResult = m_RsrcBundleLoadTask->Take(); !bundleResult)
+                {
+                    MLG_ERROR("Failed to load resource bundle from path {}", *pathResult);
+                    m_Stage = Stage::Failed;
+                }
+                else if(auto sceneResult = CreateScene(*bundleResult); !sceneResult)
+                {
+                    MLG_ERROR("Failed to create scene from resource bundle: {}", *pathResult);
+                    m_Stage = Stage::Failed;
+                }
+                else if(const auto parentPathResult = DirectoryPath::ParentPath(*pathResult); !parentPathResult)
+                {
+                    MLG_ERROR("Failed to get parent path for {}", *pathResult);
+                    m_Stage = Stage::Failed;
                 }
                 else
+                {
+                    m_ResourceBundle = std::move(*bundleResult);
+                    m_Scene = std::move(*sceneResult);
+
+                    if(!CreateView(*parentPathResult, m_ResourceBundle, *m_Scene))
+                    {
+                        MLG_ERROR("Failed to create view");
+                        m_Stage = Stage::Failed;
+                    }
+                    else
+                    {
+                        m_Stage = Stage::CreatingView;
+                    }
+                }
+
+                m_RsrcBundleLoadTask.reset();
+            }
+
+            break;
+        case Stage::CreatingView:
+            if(m_CreateViewTask->IsRunning())
+            {
+                m_CreateViewTask->Update();
+            }
+            else
+            {
+                if(auto viewResult = m_CreateViewTask->Take(); !viewResult)
                 {
                     MLG_ERROR("Failed to take view from creation task");
                     m_Stage = Stage::Failed;
                 }
+                else
+                {
+                    m_Level =
+                        std::unique_ptr<Level>(new Level(std::move(m_Scene), std::move(*viewResult)));
+                    m_Stage = Stage::Succeeded;
+                }
+
+                m_CreateViewTask.reset();
             }
             break;
 
@@ -158,28 +252,50 @@ Level::CreateTask::OnUpdate()
             MLG_ERROR("Task failed");
             [[fallthrough]];
         case Stage::Succeeded:
-            {
-                auto bye1 = std::move(m_RsrcBundle);
-                m_OptCreateViewTask.reset();
-            }
             SetComplete();
             break;
     }
 }
 
-Result<>
-Level::CreateTask::CreateFromSceneDef(const SceneDef& sceneDef)
+Result<FilePath>
+Level::CreateTask::GetPath() const
 {
-    ResourceBundleBuilder builder;
-    auto buldResult = builder.Build(sceneDef);
-    MLG_CHECK(buldResult, "Failed to build ResourceBundle from SceneDef");
-    m_RsrcBundle = std::move(*buldResult);
+    if(std::holds_alternative<BundleParams>(m_Params))
+    {
+        return std::get<BundleParams>(m_Params).Path;
+    }
 
-    auto sceneResult = Scene::Create(*m_RsrcBundle);
+    if(std::holds_alternative<GltfParams>(m_Params))
+    {
+        return std::get<GltfParams>(m_Params).Path;
+    }
 
-    MLG_CHECK(sceneResult, "Failed to create scene from resource bundle");
+    return Result<>::Fail;
+}
 
-    m_Scene = std::move(*sceneResult);
+Result<ResourceBundle>
+Level::CreateTask::CreateResourceBundle(const SceneDef& sceneDef)
+{
+    MLG_INFO("Creating resource bundle from SceneDef...");
+    return ResourceBundleBuilder().Build(sceneDef);
+}
+
+Result<std::unique_ptr<Scene>>
+Level::CreateTask::CreateScene(const ResourceBundle& resourceBundle)
+{
+    MLG_INFO("Creating scene...");
+
+    return Scene::Create(resourceBundle);
+}
+ 
+Result<>
+Level::CreateTask::CreateView(const DirectoryPath& parentPath, const ResourceBundle& resourceBundle, Scene& scene)
+{
+    MLG_INFO("Creating view...");
+
+    m_CreateViewTask.emplace(*m_System, parentPath, resourceBundle, scene);
+    
+    MLG_CHECK(m_CreateViewTask->Start(), "Failed to start view creation task");
 
     return Result<>::Ok;
 }

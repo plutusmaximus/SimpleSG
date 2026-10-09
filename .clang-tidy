@@ -4,6 +4,7 @@ Checks: >
   bugprone-*,
     -bugprone-random-generator-seed,
     -bugprone-easily-swappable-parameters,
+    -bugprone-unchecked-optional-access,
   misc-*,
     -misc-include-cleaner,
     -misc-non-private-member-variables-in-classes,

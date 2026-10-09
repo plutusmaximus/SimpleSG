@@ -3,6 +3,8 @@
 #include "AssertHelper.h"
 #include "BoundingVolumes.h"
 #include "Color.h"
+#include "CoopTask.h"
+#include "FileFetcher.h"
 #include "PhysicsTypes.h"
 #include "Result.h"
 #include "SceneTypes.h"
@@ -11,7 +13,6 @@
 #include <bit>
 #include <cstddef>
 #include <limits>
-#include <memory>
 #include <string_view>
 #include <type_traits>
 #include <vector>
@@ -119,6 +120,8 @@ class ResourceBundle final
         | (static_cast<uint32_t>(' '));
 
 public:
+    class LoadTask;
+
     /// Offset type used for resource bundle offsets.  32-bit to maintain browser compatibility.
     using OffsetType = uint32_t;
     using IndexType = uint32_t;
@@ -209,14 +212,12 @@ public:
     MLG_ASSERT_OFFSET(Header, NodeCount, 108)
     MLG_ASSERT_SIZE(Header, 112)
 
-    ResourceBundle() = delete;
+    ResourceBundle() = default;
     ~ResourceBundle() = default;
     ResourceBundle(const ResourceBundle&) = delete;
     ResourceBundle& operator=(const ResourceBundle&) = delete;
-    ResourceBundle(ResourceBundle&&) = delete;
-    ResourceBundle& operator=(ResourceBundle&&) = delete;
-
-    bool ValidateChecksum() const;
+    ResourceBundle(ResourceBundle&&) = default;
+    ResourceBundle& operator=(ResourceBundle&&) = default;
 
     std::span<const std::byte> GetBuffer() const
     {
@@ -336,6 +337,7 @@ public:
 
 private:
     friend class ResourceBundleBuilder;
+    friend LoadTask;
 
     explicit ResourceBundle(std::vector<std::byte>&& buffer)
         : m_Buffer(std::move(buffer))
@@ -377,6 +379,8 @@ private:
         return std::span<const T>(static_cast<const T*>(p), itemCount);
     }
 
+    static bool Validate(const std::span<const std::byte>& buffer);
+
     std::vector<std::byte> m_Buffer;
 };
 
@@ -390,7 +394,7 @@ public:
     ResourceBundleBuilder(ResourceBundleBuilder&&) = default;
     ResourceBundleBuilder& operator=(ResourceBundleBuilder&&) = default;
 
-    Result<std::unique_ptr<ResourceBundle>> Build(const SceneDef& sceneDef);
+    Result<ResourceBundle> Build(const SceneDef& sceneDef);
 
 private:
     ResourceBundle::Header* GetHeader()
@@ -418,6 +422,34 @@ private:
     Result<> Append(const std::span<const SceneNodeResource>& nodes);
 
     std::vector<std::byte> m_Buffer;
+};
+
+class ResourceBundle::LoadTask : public ICoopTask<>
+{
+    friend class ResourceBundle;
+public:
+
+    LoadTask() = delete;
+    ~LoadTask() override = default;  // The base class will verify completion
+    LoadTask(const LoadTask&) = delete;
+    LoadTask& operator=(const LoadTask&) = delete;
+    LoadTask(LoadTask&&) = delete;
+    LoadTask& operator=(LoadTask&&) = delete;
+
+    LoadTask(const FilePath& filePath, FileFetcher& fileFetcher);
+
+    Result<ResourceBundle> Take();
+
+private:
+
+    Result<> OnStart() override;
+
+    void OnUpdate() override;
+
+    FilePath m_FilePath;
+    FileFetcher* m_FileFetcher{ nullptr };
+    FetchRequestId m_FetchRequestId;
+    Result<ResourceBundle> m_Result;
 };
 
 /// StringResource

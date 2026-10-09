@@ -145,7 +145,7 @@ FileFetcher::IsPending(const FetchRequestId requestId) const
     return MLG_VERIFY(wrapper) && wrapper->m_Request->IsPending();
 }
 
-Result<std::vector<uint8_t>>
+Result<std::vector<std::byte>>
 FileFetcher::Take(const FetchRequestId requestId)
 {
     RequestWrapper* wrapper = GetRequest(requestId);

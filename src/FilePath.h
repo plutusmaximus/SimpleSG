@@ -130,6 +130,8 @@ public:
     /// Returns the stem (filename without the directory path) of the file path.
     std::string_view GetStem() const noexcept;
 
+    std::string_view GetExtension() const noexcept;
+
     friend bool operator==(const FilePath&, const FilePath&) = default;
 
     /// Joins a directory prefix and file path without allocating.

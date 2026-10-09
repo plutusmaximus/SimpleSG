@@ -72,7 +72,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/native/${input:buildType}/Cook.exe",
             "args": ["-i", "${input:inputFile}", "-o", "${input:outputFile}"],
-            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
+            "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "presentation": {
                 "group": "Windows",
@@ -85,7 +85,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/native/${input:buildType}/Cook",
             "args": ["-i", "${input:inputFile}", "-o", "${input:outputFile}"],
-            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
+            "cwd": "${workspaceFolder}",
             "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
@@ -122,7 +122,7 @@
             "expressions": "native",
             "program": "${workspaceFolder}/build/native/${input:buildType}/Cook",
             "args": ["-i", "${input:inputFile}", "-o", "${input:outputFile}"],
-            "cwd": "${workspaceFolder}/build/native/${input:buildType}",
+            "cwd": "${workspaceFolder}",
             "env": {
                 "ASAN_OPTIONS": "abort_on_error=0",
                 "UBSAN_OPTIONS": "abort_on_error=0:print_stacktrace=1"

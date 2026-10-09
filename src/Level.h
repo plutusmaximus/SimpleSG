@@ -22,7 +22,7 @@ public:
     class CreateTask;
 
     Level() = delete;
-    ~Level() = default;
+    ~Level();
     Level(const Level&) = delete;
     Level& operator=(const Level&) = delete;
     Level(Level&&) = delete;
@@ -54,7 +54,7 @@ public:
     };
 
     CreateTask() = delete;
-    ~CreateTask() override = default;
+    ~CreateTask() override;
     CreateTask(const CreateTask&) = delete;
     CreateTask& operator=(const CreateTask&) = delete;
     CreateTask(CreateTask&&) = delete;
@@ -75,6 +75,7 @@ private:
         StartFromSceneDef,
         StartFromBundleParams,
         StartFromGltfParams,
+        LoadingBundle,
         CreatingView,
         Succeeded,
         Failed
@@ -84,16 +85,23 @@ private:
 
     void OnUpdate() override;
 
-    Result<> CreateFromSceneDef(const SceneDef& sceneDef);
+    Result<FilePath> GetPath() const;
+
+    static Result<ResourceBundle> CreateResourceBundle(const SceneDef& sceneDef);
+
+    static Result<std::unique_ptr<Scene>> CreateScene(const ResourceBundle& resourceBundle);
+
+    Result<> CreateView(const DirectoryPath& parentPath, const ResourceBundle& resourceBundle, Scene& scene);
 
     System* m_System{ nullptr };
 
     std::variant<SceneDef, GltfParams, BundleParams> m_Params;
 
-    std::unique_ptr<ResourceBundle> m_RsrcBundle;
+    std::optional<ResourceBundle::LoadTask> m_RsrcBundleLoadTask;
 
-    std::optional<View::CreateTask> m_OptCreateViewTask;
+    std::optional<View::CreateTask> m_CreateViewTask;
 
+    ResourceBundle m_ResourceBundle;
     std::unique_ptr<Scene> m_Scene;
     std::unique_ptr<Level> m_Level;
 

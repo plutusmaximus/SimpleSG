@@ -1,13 +1,11 @@
 #include "CameraActor.h"
 #include "CommonActionIds.h"
-#include "CoopTask.h"
 #include "GpuColorPass.h"
 #include "GpuHelper.h"
 #include "ImGuiRenderer.h"
 #include "InputMapper.h"
 #include "Level.h"
 #include "PerfMetrics.h"
-#include "Scene.h"
 #include "System.h"
 #include "SystemCreateTask.h"
 #include "VecMath.h"
@@ -81,23 +79,60 @@ RenderGui()
 Result<std::unique_ptr<Level>>
 LoadLevel(System& system, const FilePath& path)
 {
-    const Level::CreateTask::GltfParams gltfParams//
-    {
-        .Path = path
-    };
-    Level::CreateTask levelCreateTask(system, gltfParams);
+    const std::string_view extOrig = path.GetExtension();
+    char buf[FilePath::StringStorageType::kMaxLength];
 
-    MLG_CHECK(levelCreateTask.Start(), "Failed to start level create task");
+    const std::span<char> destination(buf);
 
-    while(levelCreateTask.IsRunning())
+    std::ranges::transform(extOrig,
+        destination.begin(),
+        [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
+
+    const std::string_view ext(destination.data(), extOrig.size());
+
+    if(ext == ".gltf")
     {
-        levelCreateTask.Update();
+        const Level::CreateTask::GltfParams gltfParams//
+        {
+            .Path = path
+        };
+        Level::CreateTask levelCreateTask(system, gltfParams);
+
+        MLG_CHECK(levelCreateTask.Start(), "Failed to start level create task");
+
+        while(levelCreateTask.IsRunning())
+        {
+            system.GetFileFetcher().ProcessCompletions();
+            levelCreateTask.Update();
+        }
+
+        return levelCreateTask.Take();
+    }
+    
+    if(ext == ".bin")
+    {
+        const Level::CreateTask::BundleParams bundleParams//
+        {
+            .Path = path
+        };
+        Level::CreateTask levelCreateTask(system, bundleParams);
+
+        MLG_CHECK(levelCreateTask.Start(), "Failed to start level create task");
+
+        while(levelCreateTask.IsRunning())
+        {
+            system.GetFileFetcher().ProcessCompletions();
+            levelCreateTask.Update();
+        }
+
+        return levelCreateTask.Take();
     }
 
-    return levelCreateTask.Take();
+    return Result<>::Fail;
 }
 
-constexpr const char* SPONZA_MODEL_PATH = "main_sponza/NewSponza_Main_glTF_003.gltf";
+//constexpr const char* SPONZA_PATH = "main_sponza/NewSponza_Main_glTF_003.gltf";
+constexpr const char* SPONZA_PATH = "main_sponza_bin/NewSponza_Main_glTF_003.bin";
 
 Result<>
 MainLoop()
@@ -115,7 +150,7 @@ MainLoop()
     MLG_CHECK(systemResult, "Failed to create System");
     std::unique_ptr<System> system = std::move(*systemResult);
 
-    const auto sponzaModelPath = DirectoryPath::Current().Join(SPONZA_MODEL_PATH);
+    const auto sponzaModelPath = DirectoryPath::Current().Join(SPONZA_PATH);
     MLG_CHECK(sponzaModelPath, "Failed to get sponza model path");
 
     auto loadResult = LoadLevel(*system, *sponzaModelPath);
@@ -227,29 +262,6 @@ MainLoop()
     PerfMetrics::LogCounters();
 
     return Result<>::Ok;
-}
-
-class Viewer : public ICoopTask<>
-{
-public:
-    Viewer() = default;
-
-    Result<> OnStart() override;
-
-    void OnUpdate() override;
-};
-
-Result<>
-Viewer::OnStart()
-{
-    // Implement the start logic for the viewer here.
-    return Result<>::Ok;
-}
-
-void
-Viewer::OnUpdate()
-{
-    // Implement the update logic for the viewer here.
 }
 
 } // namespace

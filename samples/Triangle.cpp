@@ -5,7 +5,6 @@
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
-#include "Scene.h"
 #include "SceneTypes.h"
 #include "Shell.h"
 #include "System.h"
@@ -171,8 +170,6 @@ TriangleApp::OnUpdate()
             break;
 
         case Stage::CreatingLevel:
-            MLG_ABORTIF(!m_LevelCreateTask, "Level create task is not initialized");
-
             if(m_LevelCreateTask->IsRunning())
             {
                 m_LevelCreateTask->Update();
@@ -180,7 +177,6 @@ TriangleApp::OnUpdate()
             else
             {
                 auto levelResult = m_LevelCreateTask->Take();
-                m_LevelCreateTask.reset();
 
                 if(!MLG_VERIFY(levelResult, "Failed to create Level"))
                 {
@@ -191,6 +187,8 @@ TriangleApp::OnUpdate()
                     m_Level = std::move(*levelResult);
                     m_Stage = TriangleApp::Stage::Running;
                 }
+                
+                m_LevelCreateTask.reset();
             }
             break;
 

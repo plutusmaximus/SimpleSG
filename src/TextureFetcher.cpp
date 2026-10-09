@@ -33,7 +33,7 @@ Result<wgpu::Texture>
 TextureFetcher::FetchTask::Take()
 {
     MLG_CHECKV(!IsRunning(), "Task is not complete");
-    MLG_CHECKV(Stage::Succeeded == m_Stage, "Task failed");
+    MLG_CHECK(Stage::Succeeded == m_Stage, "Task failed");
     MLG_CHECKV(m_Texture, "Texture is not valid");
 
     wgpu::Texture texture = m_Texture;
@@ -133,7 +133,7 @@ TextureFetcher::FetchTask::OnUpdate()
 }
 
 Result<>
-TextureFetcher::FetchTask::BeginDecode(std::vector<uint8_t>&& fetchedData)
+TextureFetcher::FetchTask::BeginDecode(std::vector<std::byte>&& fetchedData)
 {
     MLG_DEBUG("Staging texture...");
 
@@ -141,7 +141,10 @@ TextureFetcher::FetchTask::BeginDecode(std::vector<uint8_t>&& fetchedData)
 
     int width = 0, height = 0, numChannels = 0;
 
-    if(!stbi_info_from_memory(m_FetchedData.data(),
+    const void* p = m_FetchedData.data();
+    const stbi_uc* fetchedBytes = static_cast<const stbi_uc*>(p);
+
+    if(!stbi_info_from_memory(fetchedBytes,
            static_cast<int>(m_FetchedData.size()),
            &width,
            &height,
@@ -192,7 +195,11 @@ TextureFetcher::FetchTask::Decode()
     MLG_DEBUG("Decoding...");
 
     int imgWidth = 0, imgHeight = 0, imgNumChannels = 0;
-    stbi_uc* data = stbi_load_from_memory(m_FetchedData.data(),
+
+    const void* p = m_FetchedData.data();
+    const stbi_uc* fetchedBytes = static_cast<const stbi_uc*>(p);
+
+    stbi_uc* data = stbi_load_from_memory(fetchedBytes,
         static_cast<int>(m_FetchedData.size()),
         &imgWidth,
         &imgHeight,
@@ -200,7 +207,7 @@ TextureFetcher::FetchTask::Decode()
         GpuHelper::kNumTextureChannels);
 
     // Free the fetched data to save memory.
-    std::vector<uint8_t>().swap(m_FetchedData);
+    std::vector<std::byte>().swap(m_FetchedData);
 
     MLG_CHECKV(data, "Failed to decode image - {}", stbi_failure_reason());
 
@@ -345,11 +352,7 @@ TextureFetcher::OnUpdate()
             break;
 
         case Stage::Fetching:
-            if(!MLG_VERIFY(m_TaskBatch, "Task batch is not initialized"))
-            {
-                m_Stage = Stage::Failed;
-            }
-            else if(m_TaskBatch->IsRunning())
+            if(m_TaskBatch->IsRunning())
             {
                 m_TaskBatch->Update();
             }
@@ -368,13 +371,14 @@ TextureFetcher::OnUpdate()
                 }
 
                 m_Stage = Stage::Succeeded;
+
+                m_TaskBatch.reset();
             }
             break;
 
         case Stage::Failed:
             [[fallthrough]];
         case Stage::Succeeded:
-            m_TaskBatch.reset();
             SetComplete();
             break;
     }

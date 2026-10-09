@@ -930,28 +930,47 @@ GetChecksum(const std::span<const std::byte>& buffer)
 
 // ResourceBundle
 
-bool
-ResourceBundle::ValidateChecksum() const
-{
-    const Header* header = GetHeader();
-
-    if(!MLG_VERIFY(header != nullptr, "Header is not initialized"))
-    {
-        return false;
-    }
-
-    return ::GetChecksum(m_Buffer) == header->Checksum;
-}
-
 std::string_view
 ResourceBundle::GetStringView(const StringResource& stringResource) const
 {
     return MakeStringView(stringResource, GetChars());
 }
 
+bool
+ResourceBundle::Validate(const std::span<const std::byte>& buffer)
+{
+    const Header* header = ::GetHeader(buffer);
+
+    if(!MLG_VERIFY(header != nullptr, "Header is not initialized"))
+    {
+        return false;
+    }
+
+    const uint32_t checksum = ::GetChecksum(buffer);
+    const uint32_t magic = header->Magic;
+    const uint32_t version = header->Version;
+
+    if(!MLG_VERIFY(checksum == header->Checksum, "Invalid resource bundle checksum"))
+    {
+        return false;
+    }
+
+    if(!MLG_VERIFY(magic == kMagic, "Unexpected resource bundle magic"))
+    {
+        return false;
+    }
+
+    if(!MLG_VERIFY(version == kVersion, "Unexpected resource bundle version"))
+    {
+        return false;
+    }
+    
+    return true;
+}
+
 // ResourceBundleBuilder
 
-Result<std::unique_ptr<ResourceBundle>>
+Result<ResourceBundle>
 ResourceBundleBuilder::Build(const SceneDef& sceneDef)
 {
     // Free old buffer mem
@@ -1045,7 +1064,7 @@ ResourceBundleBuilder::Build(const SceneDef& sceneDef)
 
     GetHeader()->Checksum = GetChecksum(m_Buffer);
 
-    return std::unique_ptr<ResourceBundle>(new ResourceBundle(std::move(m_Buffer)));
+    return ResourceBundle(std::move(m_Buffer));
 }
 
 // private:
@@ -1216,4 +1235,60 @@ ResourceBundleBuilder::Append(const std::span<const SceneNodeResource>& nodes)
     h->NodesOffset = static_cast<OffsetType>(m_Buffer.size());
     h->NodeCount = static_cast<IndexType>(nodes.size());
     return AppendSpan(nodes, m_Buffer);
+}
+
+/// ResourceBundle::LoadTask
+
+ResourceBundle::LoadTask::LoadTask(const FilePath& filePath, FileFetcher& fileFetcher)
+    : m_FilePath(filePath),
+      m_FileFetcher(&fileFetcher)
+{
+}
+
+Result<ResourceBundle>
+ResourceBundle::LoadTask::Take()
+{
+    MLG_CHECK(!IsRunning(), "Task is still running");
+    MLG_CHECKV(m_Result, "Result is not available");
+
+    Result<ResourceBundle> result = std::move(*m_Result);
+    m_Result = {};
+
+    return result;
+}
+
+Result<>
+ResourceBundle::LoadTask::OnStart()
+{
+    auto fetchRequestId = m_FileFetcher->Fetch(m_FilePath);
+    MLG_CHECK(fetchRequestId, "Failed to fetch file: {}", m_FilePath);
+
+    m_FetchRequestId = *fetchRequestId;
+    
+    return Result<>::Ok;
+}
+
+void
+ResourceBundle::LoadTask::OnUpdate()
+{
+    if(!m_FileFetcher->IsPending(m_FetchRequestId))
+    {
+        auto fetchedData = m_FileFetcher->Take(m_FetchRequestId);
+        if(!fetchedData)
+        {
+            MLG_ERROR("Failed to take fetched data");
+            SetComplete();
+            return;
+        }
+
+        if(!Validate(*fetchedData))
+        {
+            MLG_ERROR("Resource bundle validation failed");
+            SetComplete();
+            return;
+        }
+
+        m_Result = ResourceBundle(std::move(*fetchedData));
+        SetComplete();
+    }
 }

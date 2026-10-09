@@ -29,7 +29,7 @@ public:
         ThreadPool& threadPool,
         const DirectoryPath& parentPath,
         std::vector<RelativeFilePath> texturePaths);
-    ~TextureFetcher() override = default;
+    ~TextureFetcher() override = default;   // The base class will verify completion
     TextureFetcher(const TextureFetcher&) = delete;
     TextureFetcher& operator=(const TextureFetcher&) = delete;
     TextureFetcher(TextureFetcher&&) = delete;
@@ -64,7 +64,7 @@ private:
             wgpu::CommandEncoder commandEncoder);
 
         FetchTask() = delete;
-        ~FetchTask() override = default;
+        ~FetchTask() override = default;  // The base class will verify completion
         FetchTask(const FetchTask&) = delete;
         FetchTask& operator=(const FetchTask&) = delete;
         FetchTask(FetchTask&&) = delete;
@@ -86,7 +86,7 @@ private:
 
         void OnUpdate() override;
 
-        Result<> BeginDecode(std::vector<uint8_t>&& fetchedData);
+        Result<> BeginDecode(std::vector<std::byte>&& fetchedData);
 
         Result<> Decode();
 
@@ -103,7 +103,7 @@ private:
         const TextureFetcher* m_TextureFetcher{ nullptr };
         RelativeFilePath m_RelativePath;
         FetchRequestId m_FetchRequestId;
-        std::vector<uint8_t> m_FetchedData;
+        std::vector<std::byte> m_FetchedData;
         wgpu::Texture m_Texture{ nullptr };
         wgpu::Buffer m_StagingBuffer{ nullptr };
         wgpu::CommandEncoder m_CommandEncoder{ nullptr };

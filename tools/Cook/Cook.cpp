@@ -125,6 +125,12 @@ CookDirs::FromArgs(const CmdLinArgs& args)
     MLG_CHECKV(!outDir.empty(), "Output directory is not specified");
 
     std::error_code ec;
+    std::filesystem::create_directory(outDir, ec);
+
+    MLG_CHECKV(!ec, "Failed to create output directory: {}", ec.message());
+
+    ec.clear();
+    
     const std::filesystem::file_status outDirStatus = std::filesystem::status(outDir, ec);
 
     MLG_CHECKV(!ec, "Failed to get status of output directory: {}", ec.message());
@@ -429,7 +435,7 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
     auto buildResult = builder.Build(sceneDef);
     MLG_CHECK(buildResult);
 
-    const std::unique_ptr<ResourceBundle> bundle = std::move(*buildResult);
+    const ResourceBundle bundle = std::move(*buildResult);
 
     cookTextureLatch.wait();
 
@@ -445,7 +451,7 @@ Cook(const CmdLinArgs& args, ThreadPool& threadPool)
 
     MLG_CHECK(cookTexResult, "One or more texture cooking tasks failed");
 
-    MLG_CHECK(WriteResourceBundle(*cookDirs, args.InputFile, *bundle));
+    MLG_CHECK(WriteResourceBundle(*cookDirs, args.InputFile, bundle));
 
     timer.Stop();
     MLG_INFO("Cook completed in {} ms", std::trunc(timer.GetElapsedSeconds() * 1000));

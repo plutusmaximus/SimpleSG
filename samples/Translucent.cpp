@@ -6,7 +6,6 @@
 #include "Log.h"
 #include "PerfMetrics.h"
 #include "ResourceBundle.h"
-#include "Scene.h"
 #include "SceneTypes.h"
 #include "ShapeDefs.h"
 #include "Shell.h"
@@ -132,8 +131,7 @@ private:
             { .x = 0, .y = 0, .width = 1, .height = 1, .minDepth = 0, .maxDepth = 1 },
         };
 
-    std::optional<CameraActor> m_OptCameraActor;
-    CameraActor* m_CameraActor{ nullptr };
+    std::optional<CameraActor> m_CameraActor;
     Timer m_FrameTimer;
     bool m_IsCameraActorActive{ false };
 
@@ -155,8 +153,7 @@ TranslucentApp::OnStart(System& system)
     m_LevelCreateTask.emplace(*m_System, std::move(*sceneDef));
     MLG_CHECK(m_LevelCreateTask->Start(), "Failed to start level creation task");
 
-    m_OptCameraActor.emplace(system.GetInputMapper());
-    m_CameraActor = &(*m_OptCameraActor);
+    m_CameraActor.emplace(system.GetInputMapper());
 
     m_Stage = Stage::CreatingLevel;
 
@@ -179,8 +176,6 @@ TranslucentApp::OnUpdate()
             break;
 
         case Stage::CreatingLevel:
-            MLG_ABORTIF(!m_LevelCreateTask, "Level create task is not initialized");
-
             if(m_LevelCreateTask->IsRunning())
             {
                 m_LevelCreateTask->Update();
@@ -188,7 +183,6 @@ TranslucentApp::OnUpdate()
             else
             {
                 auto levelResult = m_LevelCreateTask->Take();
-                m_LevelCreateTask.reset();
 
                 if(!MLG_VERIFY(levelResult, "Failed to create Level"))
                 {
@@ -207,6 +201,8 @@ TranslucentApp::OnUpdate()
                     {
                         m_Stage = Stage::Running;
                     }
+                    
+                    m_LevelCreateTask.reset();
                 }
             }
             break;
@@ -266,12 +262,12 @@ TranslucentApp::Render()
     const CameraView cameraView(m_CameraActor->GetCamera(), m_CameraActor->GetTransform());
     MLG_CHECK(m_Level->GetView().Render(cameraView), "Failed to render view");
 
-    auto target = gpuHelper.GetSwapChainTexture();
-    MLG_CHECK(target, "Failed to get swap chain texture");
+    auto targetResult = gpuHelper.GetSwapChainTexture();
+    MLG_CHECK(targetResult, "Failed to get swap chain texture");
 
-    MLG_CHECK(m_Level->GetView().Composite(*target), "Failed to composite view");
+    MLG_CHECK(m_Level->GetView().Composite(*targetResult), "Failed to composite view");
 
-    MLG_CHECK(m_System->GetImGuiRenderer().Render(gpuHelper.GetDevice(), *target, RenderGui),
+    MLG_CHECK(m_System->GetImGuiRenderer().Render(gpuHelper.GetDevice(), *targetResult, RenderGui),
         "Failed to render ImGui");
 
     return Result<>::Ok;

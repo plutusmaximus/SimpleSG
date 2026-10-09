@@ -60,7 +60,7 @@ public:
     /// If the request is still pending, this will return a failure result.
     /// If the request completed but failed to fetch the file, this will return a failure
     /// result. If the request completed successfully, the data will be returned.
-    Result<std::vector<uint8_t>> Take(const FetchRequestId requestId);
+    Result<std::vector<std::byte>> Take(const FetchRequestId requestId);
 
     /// Processes pending asynchronous IO operations.  Must be called at least once per frame.
     void ProcessCompletions();
@@ -98,7 +98,7 @@ private:
         RelativeFilePath m_DiagFilePath; // Used only for logging
         size_t m_BytesRequested{ 0 };
         size_t m_BytesRead{ 0 };
-        std::vector<uint8_t> m_Data;
+        std::vector<std::byte> m_Data;
         uint32_t m_ReadAttempts{ 0 };
 
         Stage m_Stage{ Stage::None };

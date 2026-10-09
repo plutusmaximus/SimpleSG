@@ -215,6 +215,12 @@ FilePath::GetStem() const noexcept
     return ::GetStem(m_Value);
 }
 
+std::string_view
+FilePath::GetExtension() const noexcept
+{
+    return ::GetExtension(m_Value);
+}
+
 Result<FilePath>
 Join(const DirectoryPath& directory, const RelativeFilePath& file)
 {

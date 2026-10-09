@@ -510,7 +510,6 @@ View::CreateTask::OnUpdate()
             }
             else if(m_TaskBatch->IsRunning())
             {
-                m_System->GetFileFetcher().ProcessCompletions();
                 m_TaskBatch->Update();
             }
             else

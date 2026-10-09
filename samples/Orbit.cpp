@@ -157,6 +157,7 @@ LoadLevel(System& system)
 
     while(levelCreateTask.IsRunning())
     {
+        system.GetFileFetcher().ProcessCompletions();
         levelCreateTask.Update();
     }
 

@@ -88,7 +88,7 @@ ShaderFetcher::OnUpdate()
 }
 
 Result<>
-ShaderFetcher::CreateShaderModule(const std::span<const uint8_t> shaderData)
+ShaderFetcher::CreateShaderModule(const std::span<const std::byte> shaderData)
 {
     MLG_LOG_SCOPE(m_DiagPath);
 

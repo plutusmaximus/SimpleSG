@@ -46,14 +46,14 @@ private:
 
     void OnUpdate() override;
 
-    Result<> CreateShaderModule(const std::span<const uint8_t> shaderData);
+    Result<> CreateShaderModule(const std::span<const std::byte> shaderData);
 
     // Used only for diagnostics
     RelativeFilePath::StringStorageType m_DiagPath;
     const GpuHelper* m_GpuHelper{ nullptr };
     FileFetcher* m_FileFetcher{ nullptr };
     FetchRequestId m_RequestId;
-    std::vector<uint8_t> m_ShaderData;
+    std::vector<std::byte> m_ShaderData;
     wgpu::ShaderModule m_ShaderModule;
 
     Stage m_Stage{ Stage::None };
