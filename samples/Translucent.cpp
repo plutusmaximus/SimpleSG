@@ -55,7 +55,7 @@ CreateScene()
 
     meshDef.MaterialDef = MaterialDef //
         {
-            .BaseTexturePath{ "images/StainedGlass1A.png" },
+            .BaseTexturePath{ "images/StainedGlass.png" },
             .Color{ "#FFFFFF"_rgba },
             .AlphaMode = AlphaMode::Blend,
             .Metalness = 0,

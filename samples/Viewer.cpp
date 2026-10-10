@@ -131,8 +131,8 @@ LoadLevel(System& system, const FilePath& path)
     return Result<>::Fail;
 }
 
-constexpr const char* SPONZA_PATH = "main_sponza/NewSponza_Main_glTF_003.gltf";
-//constexpr const char* SPONZA_PATH = "main_sponza_bin/NewSponza_Main_glTF_003.bin";
+//constexpr const char* SPONZA_PATH = "main_sponza/NewSponza_Main_glTF_003.gltf";
+constexpr const char* SPONZA_PATH = "main_sponza_bin/NewSponza_Main_glTF_003.bin";
 
 Result<>
 MainLoop()

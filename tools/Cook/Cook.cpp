@@ -6,6 +6,7 @@
 #include "Result.h"
 #include "Scene.h"
 #include "SceneTypes.h"
+#include "TextureHelpers.h"
 #include "ThreadPool.h"
 #include "Timer.h"
 
@@ -59,20 +60,12 @@ constexpr uint32_t kTextureBytesPerPixel = 4;
 /// Texture row alignment in bytes.
 constexpr uint32_t kTextureRowAlignment = 256;
 
-/// Header for a cooked texture file.
-struct CookedTextureHeader
-{
-    uint32_t Version{ 1 };
-    uint32_t Width{ 0 };
-    uint32_t Height{ 0 };
-};
-
-static_assert(std::is_trivially_copyable_v<CookedTextureHeader>);
-static_assert(std::is_standard_layout_v<CookedTextureHeader>);
-static_assert(sizeof(CookedTextureHeader) == 12); // NOLINT(readability-magic-numbers)
+static_assert(std::is_trivially_copyable_v<MlgTextureHeader>);
+static_assert(std::is_standard_layout_v<MlgTextureHeader>);
+static_assert(sizeof(MlgTextureHeader) == 20); // NOLINT(readability-magic-numbers)
 
 static_assert(kTextureBytesPerPixel == 4);
-static_assert(sizeof(CookedTextureHeader) % kTextureBytesPerPixel == 0);
+static_assert(sizeof(MlgTextureHeader) % kTextureBytesPerPixel == 0);
 // Ensures that the texture row alignment is a power of two.
 static_assert(std::has_single_bit(kTextureRowAlignment));
 static_assert(kTextureRowAlignment % kTextureBytesPerPixel == 0);
@@ -292,9 +285,9 @@ LoadImage(const CookDirs& cookDirs, const std::string_view texturePath)
 
     const uint32_t dataSize = bytesPerDstRow * uImgHeight;
 
-    std::vector<std::byte> textureData(dataSize + sizeof(CookedTextureHeader));
+    std::vector<std::byte> textureData(dataSize + sizeof(MlgTextureHeader));
 
-    const CookedTextureHeader header //
+    const MlgTextureHeader header //
         {
             .Width = uImgWidth,
             .Height = uImgHeight,
@@ -305,9 +298,9 @@ LoadImage(const CookDirs& cookDirs, const std::string_view texturePath)
 
     MLG_INFO("Cooking texture: {} ({}x{})", textureFullPath.string(), uImgWidth, uImgHeight);
 
-    std::memcpy(dst, &header, sizeof(CookedTextureHeader));
+    std::memcpy(dst, &header, sizeof(MlgTextureHeader));
 
-    dst += sizeof(CookedTextureHeader);
+    dst += sizeof(MlgTextureHeader);
     const stbi_uc* src = imgData;
 
     for(uint32_t row = 0; row < uImgHeight; ++row, dst += bytesPerDstRow, src += bytesPerSrcRow)

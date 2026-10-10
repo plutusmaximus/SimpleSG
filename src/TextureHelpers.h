@@ -10,6 +10,41 @@
 class GpuHelper;
 class ThreadPool;
 
+/// Header for a cooked texture file.
+struct MlgTextureHeader
+{
+    static constexpr uint32_t kMagicRaw0 = (static_cast<uint32_t>('M') << 24)
+        | (static_cast<uint32_t>('L') << 16)
+        | (static_cast<uint32_t>('G') << 8)
+        | (static_cast<uint32_t>(' '));
+
+    static constexpr uint32_t kMagicRaw1 = (static_cast<uint32_t>('T') << 24)
+        | (static_cast<uint32_t>('E') << 16)
+        | (static_cast<uint32_t>('X') << 8)
+        | (static_cast<uint32_t>(' '));
+
+    static constexpr uint32_t kMagic0 =
+        std::endian::native == std::endian::big ? kMagicRaw0 : std::byteswap(kMagicRaw0);
+    static constexpr uint32_t kMagic1 =
+        std::endian::native == std::endian::big ? kMagicRaw1 : std::byteswap(kMagicRaw1);
+    static constexpr uint32_t kVersion = 1;
+
+    static constexpr uint32_t kMaxImageWidth = 4096;
+    static constexpr uint32_t kMaxImageHeight = 4096;
+
+    bool IsMlgTexture() const;
+
+    static const MlgTextureHeader* GetHeader(const std::span<const std::byte>& buffer);
+
+    static Result<> Validate(const std::span<const std::byte> buffer);
+
+    const uint32_t Magic0{ kMagic0 };   // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const uint32_t Magic1{ kMagic1 };   // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    const uint32_t Version{ kVersion }; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
+    uint32_t Width{ 0 };
+    uint32_t Height{ 0 };
+};
+
 /// Task responsible for decoding a texture from raw image data.
 /// A wgpu::CommandEncoder must be provided to record the necessary GPU commands for texture upload.
 /// This task records the necessary GPU commands to the command encoderfor texture upload.
@@ -47,17 +82,26 @@ private:
 
     Result<> BeginDecode();
 
-    Result<> Decode();
+    Result<> BeginDecodeMlg();
+
+    Result<> BeginDecodeStb();
+
+    Result<> BeginStaging();
+
+    Result<> DecodeMlg();
+    Result<> DecodeStb();
 
     // Worker thread entry point for decoding the texture.
-    static void Decode(void* userData);
-
+    static void DecodeMlg(void* userData);
+    static void DecodeStb(void* userData);
+    
     Result<> CommitStagingBuffer();
 
     const GpuHelper* m_GpuHelper{ nullptr };
     ThreadPool* m_ThreadPool{ nullptr };
     FilePath m_Path;
     std::vector<std::byte> m_TexBytes;
+    wgpu::Texture m_StagingTexture{ nullptr };
     wgpu::Texture m_Texture{ nullptr };
     wgpu::Buffer m_StagingBuffer{ nullptr };
     wgpu::CommandEncoder m_CommandEncoder{ nullptr };
