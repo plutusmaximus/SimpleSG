@@ -948,20 +948,23 @@ ResourceBundle::Validate(const std::span<const std::byte>& buffer)
     }
 
     const uint32_t checksum = ::GetChecksum(buffer);
-    const uint32_t magic = header->Magic;
-    const uint32_t version = header->Version;
 
     if(!MLG_VERIFY(checksum == header->Checksum, "Invalid resource bundle checksum"))
     {
         return false;
     }
 
-    if(!MLG_VERIFY(magic == kMagic, "Unexpected resource bundle magic"))
+    if(!MLG_VERIFY(header->Magic0 == kMagic0, "Unexpected resource bundle magic 0"))
     {
         return false;
     }
 
-    if(!MLG_VERIFY(version == kVersion, "Unexpected resource bundle version"))
+    if(!MLG_VERIFY(header->Magic1 == kMagic1, "Unexpected resource bundle magic 1"))
+    {
+        return false;
+    }
+
+    if(!MLG_VERIFY(header->Version == kVersion, "Unexpected resource bundle version"))
     {
         return false;
     }

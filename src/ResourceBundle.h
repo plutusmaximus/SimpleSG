@@ -114,10 +114,15 @@ class ResourceBundleBuilder;
 /// Returned spans and string views remain valid until the bundle's memory is freed.
 class ResourceBundle final
 {
-    static constexpr uint32_t kMagicRaw = (static_cast<uint32_t>('M') << 24)
+    static constexpr uint32_t kMagicRaw0 = (static_cast<uint32_t>('M') << 24)
         | (static_cast<uint32_t>('L') << 16)
         | (static_cast<uint32_t>('G') << 8)
         | (static_cast<uint32_t>(' '));
+
+    static constexpr uint32_t kMagicRaw1 = (static_cast<uint32_t>('S') << 24)
+        | (static_cast<uint32_t>('C') << 16)
+        | (static_cast<uint32_t>('E') << 8)
+        | (static_cast<uint32_t>('N'));
 
 public:
     class LoadTask;
@@ -129,8 +134,10 @@ public:
     static_assert(std::numeric_limits<OffsetType>::max() <= std::numeric_limits<size_t>::max());
     static_assert(std::numeric_limits<IndexType>::max() <= std::numeric_limits<size_t>::max());
 
-    static constexpr uint32_t kMagic =
-        std::endian::native == std::endian::big ? kMagicRaw : std::byteswap(kMagicRaw);
+    static constexpr uint32_t kMagic0 =
+        std::endian::native == std::endian::big ? kMagicRaw0 : std::byteswap(kMagicRaw0);
+    static constexpr uint32_t kMagic1 =
+        std::endian::native == std::endian::big ? kMagicRaw1 : std::byteswap(kMagicRaw1);
 
     static constexpr uint32_t kVersion = 0x00000001;
 
@@ -147,7 +154,8 @@ public:
 
 #define RESOURCE_BUNDLE_HEADER_FIELDS(X)                                                           \
     X(IndexType, Checksum, 0)                                                                      \
-    X(IndexType, Magic, kMagic)                                                                    \
+    X(IndexType, Magic0, kMagic0)                                                                  \
+    X(IndexType, Magic1, kMagic1)                                                                  \
     X(IndexType, Version, kVersion)                                                                \
     X(OffsetType, TotalSize, 0)                                                                    \
     X(OffsetType, CharsOffset, kInvalidOffset)                                                     \
@@ -180,37 +188,38 @@ public:
         RESOURCE_BUNDLE_HEADER_FIELDS(MLG_DECLARE_FIELD)
     };
     static_assert(BinaryStruct<Header>);
-    MLG_ASSERT_FIELD_COUNT(RESOURCE_BUNDLE_HEADER_FIELDS, 28);
+    MLG_ASSERT_FIELD_COUNT(RESOURCE_BUNDLE_HEADER_FIELDS, 29);
     MLG_ASSERT_NO_PADDING(Header, RESOURCE_BUNDLE_HEADER_FIELDS);
     MLG_ASSERT_OFFSET(Header, Checksum, 0)
-    MLG_ASSERT_OFFSET(Header, Magic, 4)
-    MLG_ASSERT_OFFSET(Header, Version, 8)
-    MLG_ASSERT_OFFSET(Header, TotalSize, 12)
-    MLG_ASSERT_OFFSET(Header, CharsOffset, 16)
-    MLG_ASSERT_OFFSET(Header, StringsOffset, 20)
-    MLG_ASSERT_OFFSET(Header, TexturesOffset, 24)
-    MLG_ASSERT_OFFSET(Header, MaterialsOffset, 28)
-    MLG_ASSERT_OFFSET(Header, VerticesOffset, 32)
-    MLG_ASSERT_OFFSET(Header, IndicesOffset, 36)
-    MLG_ASSERT_OFFSET(Header, MeshesOffset, 40)
-    MLG_ASSERT_OFFSET(Header, ModelsOffset, 44)
-    MLG_ASSERT_OFFSET(Header, ModelInstancesOffset, 48)
-    MLG_ASSERT_OFFSET(Header, CollidersOffset, 52)
-    MLG_ASSERT_OFFSET(Header, RigidBodiesOffset, 56)
-    MLG_ASSERT_OFFSET(Header, NodesOffset, 60)
-    MLG_ASSERT_OFFSET(Header, CharsLength, 64)
-    MLG_ASSERT_OFFSET(Header, StringCount, 68)
-    MLG_ASSERT_OFFSET(Header, TextureCount, 72)
-    MLG_ASSERT_OFFSET(Header, MaterialCount, 76)
-    MLG_ASSERT_OFFSET(Header, VertexCount, 80)
-    MLG_ASSERT_OFFSET(Header, IndexCount, 84)
-    MLG_ASSERT_OFFSET(Header, MeshCount, 88)
-    MLG_ASSERT_OFFSET(Header, ModelCount, 92)
-    MLG_ASSERT_OFFSET(Header, ModelInstanceCount, 96)
-    MLG_ASSERT_OFFSET(Header, ColliderCount, 100)
-    MLG_ASSERT_OFFSET(Header, RigidBodyCount, 104)
-    MLG_ASSERT_OFFSET(Header, NodeCount, 108)
-    MLG_ASSERT_SIZE(Header, 112)
+    MLG_ASSERT_OFFSET(Header, Magic0, 4)
+    MLG_ASSERT_OFFSET(Header, Magic1, 8)
+    MLG_ASSERT_OFFSET(Header, Version, 12)
+    MLG_ASSERT_OFFSET(Header, TotalSize, 16)
+    MLG_ASSERT_OFFSET(Header, CharsOffset, 20)
+    MLG_ASSERT_OFFSET(Header, StringsOffset, 24)
+    MLG_ASSERT_OFFSET(Header, TexturesOffset, 28)
+    MLG_ASSERT_OFFSET(Header, MaterialsOffset, 32)
+    MLG_ASSERT_OFFSET(Header, VerticesOffset, 36)
+    MLG_ASSERT_OFFSET(Header, IndicesOffset, 40)
+    MLG_ASSERT_OFFSET(Header, MeshesOffset, 44)
+    MLG_ASSERT_OFFSET(Header, ModelsOffset, 48)
+    MLG_ASSERT_OFFSET(Header, ModelInstancesOffset, 52)
+    MLG_ASSERT_OFFSET(Header, CollidersOffset, 56)
+    MLG_ASSERT_OFFSET(Header, RigidBodiesOffset, 60)
+    MLG_ASSERT_OFFSET(Header, NodesOffset, 64)
+    MLG_ASSERT_OFFSET(Header, CharsLength, 68)
+    MLG_ASSERT_OFFSET(Header, StringCount, 72)
+    MLG_ASSERT_OFFSET(Header, TextureCount, 76)
+    MLG_ASSERT_OFFSET(Header, MaterialCount, 80)
+    MLG_ASSERT_OFFSET(Header, VertexCount, 84)
+    MLG_ASSERT_OFFSET(Header, IndexCount, 88)
+    MLG_ASSERT_OFFSET(Header, MeshCount, 92)
+    MLG_ASSERT_OFFSET(Header, ModelCount, 96)
+    MLG_ASSERT_OFFSET(Header, ModelInstanceCount, 100)
+    MLG_ASSERT_OFFSET(Header, ColliderCount, 104)
+    MLG_ASSERT_OFFSET(Header, RigidBodyCount, 108)
+    MLG_ASSERT_OFFSET(Header, NodeCount, 112)
+    MLG_ASSERT_SIZE(Header, 116)
 
     ResourceBundle() = default;
     ~ResourceBundle() = default;
